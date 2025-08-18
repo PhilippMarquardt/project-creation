@@ -11,20 +11,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union, Literal
 
-# ---- third-party imports
-# Pydantic's BaseModel and Field for Gemini-compatible tool schemas
+
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import InMemorySaver  # preferred checkpointer
+from langgraph.checkpoint.memory import InMemorySaver  
 
 
-# ===============================
-# Workspace sandbox (path safety)
-# ===============================
 
 class WorkspaceError(RuntimeError):
     pass
@@ -50,9 +46,6 @@ class Workspace:
         p.parent.mkdir(parents=True, exist_ok=True)
 
 
-# ==========================
-# Common helpers
-# ==========================
 
 ALLOWED_COMMANDS = {
     "node", "npm", "pnpm", "yarn", "npx", "vite",
@@ -115,9 +108,6 @@ def _format_run_result(result: Dict[str, Any]) -> str:
     return "\n".join(output)
 
 
-# ==========================
-# Pydantic schemas for Gemini compatibility
-# ==========================
 
 class FsSearchSchema(BaseModel):
     pattern: str = Field(description="The regular expression pattern to search for")
@@ -140,16 +130,9 @@ class GitAddSchema(BaseModel):
 class FsReadFunctionDefinitionsSchema(BaseModel):
     path: str = Field(description="The path to the file to read")
 
-# ==========================
-# Tool registry / builder
-# ==========================
 
 def build_mcp_tools(workspace_root: Union[str, Path]) -> List:
     default_ws = Workspace(Path(workspace_root))
-
-    # ---- ✨ REFACTORED ✨ ----
-    # All tools now use direct parameters instead of Pydantic models.
-    # The `args_schema` argument has been removed from the `@tool` decorator.
 
     @tool
     def fs_write(path: str, content: str, create_dirs: bool = True, append: bool = False, *, config: RunnableConfig) -> str:
@@ -227,14 +210,11 @@ def build_mcp_tools(workspace_root: Union[str, Path]) -> List:
             items = []
             for p in paths:
                 rel_path = p.relative_to(ws.root)
-                # Skip node_modules folder contents but show the folder itself
                 path_parts = rel_path.parts
-                if "node_modules" in path_parts:
-                    # If it's exactly node_modules folder, show it
+                if "node_modules" in path_parts: # skip node modules, too many fiels...
                     if len(path_parts) == 1 and path_parts[0] == "node_modules":
                         entry_type = "d" if p.is_dir() else "f"
                         items.append(f"{entry_type} {str(rel_path)}")
-                    # Skip all contents inside node_modules
                     continue
                 
                 if not recursive and not glob and rel_path.parent != Path(path) and base.joinpath(rel_path.parent) != base:
@@ -425,9 +405,6 @@ def build_mcp_tools(workspace_root: Union[str, Path]) -> List:
     ]
 
 
-# ==========================
-# Agent (LangGraph prebuilt)
-# ==========================
 
 SYSTEM_PROMPT_TEMPLATE = """\
 You are an ai coding assistant. You are given a task and a list of tools to use to complete the task.
@@ -437,7 +414,7 @@ class AgentState(TypedDict):
     messages: List[BaseMessage]
 
 def pre_model(input_data):
-    print(input_data["messages"][-1].content)
+    #print(input_data["messages"][-1].content) for debugging purposes
     return input_data
 
 def build_mcp_agent(model: BaseChatModel, tools: List, system_prompt: str = SYSTEM_PROMPT_TEMPLATE) -> Runnable:
